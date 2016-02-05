@@ -1,0 +1,5 @@
+CURRENT_CHANNEL = ""
+CURRENT_USER = ""
+VARIABLE = ""
+CHANNEL_INFO = {}
+irc = None
