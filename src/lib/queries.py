@@ -18,32 +18,34 @@ class Database:
                 CREATE TABLE IF NOT EXISTS users(
                     id INTEGER PRIMARY KEY,
                     username TEXT, points INT, channel TEXT);
-                """)
+            """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS custom_commands(
                     id INTEGER PRIMARY KEY, channel TEXT,
                     created_by TEXT, command TEXT,
                     response TEXT, times_used INT
-                    , user_level TEXT);
-                """)
+                    , user_level TEXT, timer INTEGER,
+                    timer_tripped INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
+            """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS quotes(
                     id INTEGER PRIMARY KEY, channel TEXT,
                     created_by TEXT, quote TEXT,
                     quote_number INT, game TEXT);
-                """)
+            """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS channel_info(
                     id INTEGER PRIMARY KEY, channel TEXT,
                     stream_id INTEGER DEFAULT 0,
                     twitch_oauth TEXT DEFAULT '',
                     twitchalerts_oauth TEXT DEFAULT '');
-                """)
+            """)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS channel_data(
                     id INTEGER PRIMARY KEY, channel TEXT,
                     username TEXT, data_type TEXT);
-                """)
+            """)
 
     def add_user(self, user, channel):
         with self.con:
@@ -54,7 +56,7 @@ class Database:
                     WHERE NOT EXISTS(
                         SELECT 1 FROM users WHERE username = ?
                         AND channel = ?);
-                """, user, channel)
+            """, user, channel)
 
     def add_users(self, users, channel):
         user_tuples = [(user, channel, user, channel) for user in users]
@@ -66,21 +68,21 @@ class Database:
                     WHERE NOT EXISTS(
                         SELECT 1 FROM users WHERE username = ?
                         AND channel = ?);
-                """, user_tuples)
+            """, user_tuples)
 
     def remove_user(self, user="testuser", channel="testchannel"):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
                 DELETE FROM users WHERE username = ? and channel = ?;
-                """, [user, channel])
+            """, [user, channel])
 
     def get_user(self, user="testuser", channel="testchannel"):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
                 SELECT * FROM users WHERE username = ? and channel = ?
-                """, [user, channel])
+            """, [user, channel])
             user_data = cur.fetchone()
             return user_data
 
@@ -90,12 +92,12 @@ class Database:
             cur.execute("""
                 UPDATE users SET points = points + ? WHERE username = ?
                     AND channel = ?;
-                """, [points, user, channel])
+            """, [points, user, channel])
 
     def add_command(
             self, user="testuser", command="!test",
             response="{} check this out", user_level="reg",
-            channel="testuser"):
+            channel="testchannel"):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
@@ -106,26 +108,26 @@ class Database:
                     WHERE NOT EXISTS(
                         SELECT 1 FROM custom_commands
                             WHERE command = ? and channel = ?);
-                """, [channel, user, command, response,
+            """, [channel, user, command, response,
                         user_level, command, channel])
 
-    def remove_command(self, command="!test", channel="testuser"):
+    def remove_command(self, command="!test", channel="testchannel"):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
                 DELETE FROM custom_commands
                     WHERE command = ? AND channel = ?;
-                """, [command, channel])
+            """, [command, channel])
 
     def modify_command(
             self, command="!test", response="different response",
-            channel="testuser", user_level="mod"):
+            channel="testchannel", user_level="mod"):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
                 UPDATE custom_commands SET response = ?, user_level = ?
                     WHERE command = ? AND channel = ?;
-                """, [response, user_level, command, channel])
+            """, [response, user_level, command, channel])
 
     def increment_command(self, command="!test", channel="testuser"):
         with self.con:
@@ -133,7 +135,7 @@ class Database:
             cur.execute("""
                 UPDATE custom_commands SET times_used = times_used + 1
                     WHERE command = ? AND channel = ?;
-                """, [command, channel])
+            """, [command, channel])
 
     def get_command(self, command="!test", channel="testuser"):
         with self.con:
@@ -141,9 +143,34 @@ class Database:
             cur.execute("""
                 SELECT * FROM custom_commands
                     WHERE command = ? AND channel = ?;
-                """, [command, channel])
+            """, [command, channel])
             command_data = cur.fetchone()
             return command_data
+
+    def get_timer_command(self, channel="testchannel"):
+        with self.con:
+            cur = self.con.cursor()
+            cur.execute("""
+                SELECT channel, command, response, user_level,
+                    timer, timer_tripped, created_at FROM custom_commands
+                    WHERE channel = ? AND timer_tripped = 0
+                        AND user_level = 'timer';
+            """, [channel])
+            timers = cur.fetchall()
+            cur.execute("""
+                UPDATE custom_commands SET timer_tripped = 0
+                    WHERE timer_tripped = 1 AND user_level = 'timer';
+            """)
+            return timers
+
+    def update_timer_command(self, channel="testchannel", command="!test"):
+        with self.con:
+            cur = self.con.cursor()
+            cur.execute("""
+                UPDATE custom_commands SET timer_tripped = 1
+                    WHERE channel = ? AND command = ?
+                        AND user_level = 'timer';
+            """, [channel, command])
 
     def add_quote(
             self, channel="testchannel", user="testuser", quote="quote",
@@ -152,18 +179,18 @@ class Database:
             cur = self.con.cursor()
             cur.execute("""
                 SELECT count(0) FROM quotes WHERE channel = ?
-                """, [channel])
+            """, [channel])
             count = cur.fetchone()[0]
             cur.execute("""
                 INSERT INTO quotes VALUES (NULL, ?, ?, ?, ?, ?)
-                """, [channel, user, quote, count + 1, game])
+            """, [channel, user, quote, count + 1, game])
 
     def remove_quotes(self, channel="testchannel"):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
                 DELETE FROM quotes WHERE channel = ?
-                """, [channel])
+            """, [channel])
 
     def get_quote(self, channel="testchannel"):
         with self.con:
@@ -171,7 +198,7 @@ class Database:
             cur.execute("""
                 SELECT * FROM quotes WHERE channel = ?
                     ORDER BY RANDOM() LIMIT 1;
-                """, [channel])
+            """, [channel])
             quote = cur.fetchone()
             return quote
 
@@ -180,7 +207,7 @@ class Database:
             cur = self.con.cursor()
             cur.execute("""
                 SELECT id, channel FROM channel_info WHERE channel = ?;
-                """, [channel])
+            """, [channel])
             channel_id = cur.fetchone()
             return channel_id
 
@@ -189,7 +216,7 @@ class Database:
             cur = self.con.cursor()
             cur.execute("""
                 SELECT channel, stream_id FROM channel_info WHERE channel = ?;
-                """, [channel])
+            """, [channel])
             stream_id = cur.fetchone()
             return stream_id
 
@@ -197,7 +224,7 @@ class Database:
         cur = self.con.cursor()
         cur.execute("""
             UPDATE channel_info SET stream_id = ? WHERE channel = ?;
-            """, [stream_id, channel])
+        """, [stream_id, channel])
 
     def add_channel_id(self, id=12345, channel="testchannel"):
         with self.con:
@@ -209,14 +236,14 @@ class Database:
                     WHERE NOT EXISTS(
                         SELECT 1 FROM channel_info
                             WHERE channel = ?);
-                """, [id, channel, channel])
+            """, [id, channel, channel])
 
     def remove_channel_info(self, id=12345, channel="testchannel"):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
                 DELETE FROM channel_info WHERE id = ? OR channel = ?;
-                """, [id, channel])
+            """, [id, channel])
 
     def get_channel_data_by_user(
             self, user="testuser", channel="testchannel", data_type="host"):
@@ -225,7 +252,7 @@ class Database:
             cur.execute("""
                 SELECT channel, username, data_type FROM channel_data
                     WHERE username = ? AND channel = ? AND data_type = ?;
-                """, [user, channel, data_type])
+            """, [user, channel, data_type])
             channel_data = cur.fetchall()
             return channel_data
 
@@ -236,7 +263,7 @@ class Database:
             cur.execute("""
                 SELECT id, channel, username, data_type FROM channel_data
                     WHERE channel = ? AND data_type = ?
-                """, [channel, data_type])
+            """, [channel, data_type])
             channel_data = cur.fetchall()
             return channel_data
 
@@ -252,11 +279,11 @@ class Database:
                         SELECT 1 FROM channel_data
                             WHERE channel = ? AND username = ?
                             AND data_type = ?);
-                """, [channel, user, data_type, channel, user, data_type])
+            """, [channel, user, data_type, channel, user, data_type])
 
     def remove_channel_data(self, channel="testchannel", data_type="host"):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
                 DELETE FROM channel_data WHERE channel = ? AND data_type = ?;
-                """, [channel, data_type])
+            """, [channel, data_type])

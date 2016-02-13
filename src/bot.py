@@ -1,194 +1,295 @@
 """
-Custom Twitch Chat Moderator Bot for Twitch.tv
+Intricate Chat Bot for Twitch.tv with Whispers
 
-By Shane Engelman me@5h4n3.com @shaneengelman
-
-Made for the Outer Heaven Network at twitch.tv/uknighted
+By Shane Engelman <me@5h4n3.com>
 """
 
+import re
 import sys
+import time
 
 import globals
 import lib.functions_commands as commands
-import lib.irc as irc_
-import src.config.crons as crons
 import src.lib.command_headers
-import src.lib.cron as cron
+import src.lib.rive as rive
 import src.lib.twitch as twitch
 from lib.functions_general import *
-from src.lib.queries import Database
+from src.config.config import channels_to_join, config
 from src.lib.twitch import get_dict_for_users
+from twisted.internet import reactor, task, threads
+from twisted.internet.protocol import ClientFactory
+from twisted.words.protocols import irc
+from src.lib.queries import Database
+import src.config.crons as crons
+
+Database().initiate()
+pattern = re.compile('[\W_]+')
 
 reload(sys)
 sys.setdefaultencoding("utf8")
 
-
-END = False
-
+PRIMARY_CHANNEL = "outerheaven"
 BOT_USER = "nano_machina"
-TEST_USER = "singlerider"
-STREAM_USER = "uknighted"
+SUPERUSER = "singlerider"
+TEST_USER = "theepicsnail_"
+
+SERVER = config["server"]
+NICKNAME = config["username"]
+PASSWORD = config["oauth_password"]
+
+ECHOERS = {}
 
 
-class Bot(object):
+def ban_for_spam(channel, user):
+    ban = "/ban {0}".format(user)
+    unban = "/unban {0}".format(user)
+    self.msg(channel, ban)
+    self.msg(channel, unban)
 
-    def __init__(self, config):
-        self.db = Database()
-        self.db.initiate()
+
+class Bot(irc.IRCClient):
+
+    def __init__(self):
+        self.nickname = NICKNAME
+        self.password = PASSWORD
         self.config = config
-        self.crons = crons
+        self.crons = crons.crons.get("crons", {})
         src.lib.command_headers.initalizeCommands(config)
-        self.irc = irc_.irc(config)
-        # start threads for channels that have cron messages to run
-        cron.initialize_crons(self.irc, self.crons.crons.get("crons", {}))
-        cron.initialize_channel_id_check(self.config)
-        globals.irc = self.irc
 
-    def run(self):
+    def dataReceived(self, data):
+        if data.split()[0] != "PING" or data.split()[1] != "PONG":
+            print("->*" + data)
+        if data.split()[1] == "WHISPER":
+            user = data.split()[0].lstrip(":")
+            channel = user.split("!")[0]
+            msg = " ".join(data.split()[3:]).lstrip(":")
+            self.whisper(user, channel, msg)
+        irc.IRCClient.dataReceived(self, data)
 
-        def check_for_sub(channel, username, message):
-            db = Database()
-            try:
-                channel = channel.lstrip("#")
-                message_split = message.rstrip("!").split()
-                subbed_user = message_split[0].lower()
-                if message_split[1] == "just" and len(message_split) < 4:
-                    points = 1000
-                    db.add_user([subbed_user], channel)
-                    db.modify_points(subbed_user, channel, points)
-                    resp = "/me {0} just subscribed for the first time!\
- {1} cash for you!".format(subbed_user, points)
-                    self.irc.send_message("#" + channel, resp)
-                elif message_split[1] == "subscribed" and len(message_split) < 9:
-                    months_subbed = message_split[3]
-                    points = 250
-                    db.add_user([subbed_user], channel)
-                    db.modify_points(subbed_user, channel, points)
-                    resp = "/me {0} has just resubscribed for {1} months \
-straight and is getting {2} cash!".format(subbed_user, months_subbed, points)
-                    self.irc.send_message("#" + channel, resp)
-            except Exception as error:
-                print error
+    def signedOn(self):
+        print("\033[91mYOLO, I was signed on to the server!!!\033[0m")
+        if self.factory.kind == "whisper":
+            self.sendLine("CAP REQ :twitch.tv/commands")
+        if self.factory.kind == "chat":
+            for channel in channels_to_join:
+                self.joinChannel(channel)
+        ECHOERS[self.factory.kind] = self
 
-        def custom_command(channel, message, username, elements):
-            db = Database()
-            command = elements[3]
-            chan = channel.lstrip("#")
-            replacement_user = username
-            if len(message) > 1:
-                replacement_user = message[1]
-            if elements[6] == "mod":
-                user_dict, __ = get_dict_for_users()
-                if username in user_dict["chatters"]["moderators"]:
-                    resp = elements[4].replace("{}", replacement_user)
-                    self.irc.send_message(channel, resp)
-                    db.increment_command(command, chan)
-                else:
-                    resp = "This is a moderator-only command"
-                    self.irc.send_message(channel, resp)
-            elif elements[6] == "reg":
-                resp = elements[4].replace("{}", replacement_user)
-                self.irc.send_message(channel, resp)
-                db.increment_command(command, chan)
+    def joinChannel(self, channel):
+        self.join(channel)
+        return
 
-        while True:
-            try:
-                data = self.irc.nextMessage()
-                if not self.irc.check_for_message(data):
+    def joined(self, channel):
+        if self.factory.kind == "chat":
+            self.cron_initialize(BOT_USER, channel)
+
+    def clientConnectionLost(self, connector, reason):
+        """If we get disconnected, reconnect to server."""
+        connector.connect()
+
+    def clientConnectionFailed(self, connector, reason):
+        print "connection failed:", reason
+        reactor.stop()
+
+    def action(self, user, channel, data):
+        pass
+
+    def privmsg(self, user, channel, message):
+        """Called when the bot receives a message."""
+        username = user.split("!")[0].lstrip(":")
+        globals.CURRENT_USER = username
+        chan = channel.lstrip("#")
+        globals.CURRENT_CHANNEL = chan
+        print username, channel, message
+        chan = channel.lstrip("#")
+        if (channel == "#" + PRIMARY_CHANNEL or
+                channel == "#" + SUPERUSER or
+                channel == "#" + TEST_USER):
+            if username == "twitchnotify":
+                check_for_sub(channel, username, message)
+            # TODO add spam detector here
+        chan = channel.lstrip("#")
+        if message[0] == "!":
+            message_split = message.split()
+            #fetch_command = get_custom_command(chan, message_split[0])
+            #if len(fetch_command) > 0:
+            #    if message_split[0] == fetch_command[0][1]:
+            #        self.return_custom_command(
+            #            channel, message_split, username)
+            #        return
+        part = message.split(' ')[0]
+        valid = False
+        if commands.is_valid_command(message):
+            valid = True
+        if commands.is_valid_command(part):
+            valid = True
+        if not valid:
+            return
+        resp = self.handle_command(
+            part, channel, username, message)
+        if resp:
+            self.msg(channel, resp.replace("\n", "").replace("\r", "") + "\r\n")
+
+    def whisper(self, user, channel, msg):
+        msg = msg.lstrip("!")
+        if "!" not in user:
+            channel = user
+            resp = msg
+            username = user
+        else:
+            username = user.split("!")[0].lstrip(":")
+            resp = rive.Conversation(self).run(BOT_USER, username, msg)[:350]
+        if resp:
+            sender = "{user}!{user}@{user}.tmi.twitch.tv".format(user=BOT_USER)
+            line = ":%s PRIVMSG #jtv :/w %s %s" % (sender, channel, resp)
+            echoer = ECHOERS["whisper"]
+            echoer.sendLine(line)
+
+    def return_custom_command(self, channel, message, username):
+        chan = channel.lstrip("#")
+        elements = get_custom_command_elements(
+            chan, message[0])
+        replacement_user = username
+        if len(message) > 1:
+            replacement_user = message[1]
+        resp = elements[1].replace(
+            "{}", replacement_user).replace("[]", str(elements[2] + 1))
+        if elements[0] == "mod":
+            user_dict, __ = get_dict_for_users()
+            moderator = get_moderator(username, chan)
+            if moderator:
+                self.msg(channel, resp)
+                increment_command_counter(chan, message[0])
+        elif elements[0] == "reg":
+            self.msg(channel, resp)
+            increment_command_counter(chan, message[0])
+
+    def check_for_sub(self, channel, username, message):
+        try:
+            message_split = message.rstrip("!").split()
+            subbed_user = message_split[0]
+            if message_split[1] == "just" and len(message_split) < 4:
+                modify_user_points(subbed_user, 100)
+                resp = "/me {0} treats for {1} for a first \
+    time subscription!".format(100, subbed_user)
+                self.msg(channel, resp)
+            elif message_split[1] == "subscribed" and len(message_split) < 9:
+                months_subbed = message_split[3]
+                modify_user_points(subbed_user, int(months_subbed) * 100)
+                resp = "/me {0} has just resubscribed for {1} \
+    months straight and is getting {2} treats for loyalty!".format(
+                    subbed_user, months_subbed, int(months_subbed) * 100)
+                self.msg(channel, resp)
+        except Exception as error:  # pragma: no cover
+            print error
+
+    def cron_initialize(self, user, channel):
+        crons = self.crons.get("#" + channel.lstrip("#"), None)
+        if crons:
+            for job in crons:
+                if job[1]:
+                    kwargs = {"delay": job[0], "callback": job[2], "channel": channel}
+
+                    def looping_call(kwargs):
+                        time.sleep(kwargs["delay"])
+                        task.LoopingCall(self.cron_job, kwargs).start(kwargs["delay"])
+                    threads.deferToThread(looping_call, kwargs)
                     continue
-                message_dict = self.irc.get_message(data)
-                channel = message_dict['channel']
-                globals.CURRENT_CHANNEL = channel.lstrip('#')
-                message = message_dict['message']  # .lower()
-                username = message_dict['username']
-                globals.CURRENT_USER = username
-                chan = channel.lstrip("#")
-                if message[0] == "!":
-                    command = message.split(" ")[0]
-                    command_data = self.db.get_command(command, chan)
-                    if command_data:
-                        message_split = message.split(" ")
-                        custom_command(
-                            channel, message_split, username, command_data)
-                if username == "twitchnotify":
-                    check_for_sub(channel, username, message)
-                part = message.split(' ')[0]
-                valid = False
-                if commands.is_valid_command(message):
-                    valid = True
-                if commands.is_valid_command(part):
-                    valid = True
-                if not valid:
-                    continue
-                self.handleCommand(part, channel, username, message)
-            except Exception as error:
-                print error
 
-    def handleCommand(self, command, channel, username, message):
-        # parse arguments
-        # if command is space case then
-        #   !foo bar baz
-        # turns into
-        #   command = "!foo", args=["bar baz"]
-        # otherwise it turns into
-        #   command = "!foo", args=["bar", "baz"]
-        # print("Inputs:", command, channel, username, message)
+    def cron_job(self, kwargs):
+        channel = kwargs["channel"]
+        resp = kwargs["callback"](kwargs["channel"])
+        if resp:
+            user = "{user}!{user}@{user}.tmi.twitch.tv".format(user=BOT_USER)
+            line = ":{user} PRIVMSG {channel} :{message}".format(
+                user=user, channel=channel, message=resp)
+            print "<*>" + line
+            self.transport.write(line + "\r\n")
+
+    def handle_command(self, command, channel, username, message):
         if command == message:
             args = []
+        elif command == message and command in commands.keys():  # pragma: no cover
+            pass
         else:
-            # default to args = ["bar baz"]
             args = [message[len(command) + 1:]]
         if not commands.check_is_space_case(command) and args:
-            # if it's not space case, break the arg apart
             args = args[0].split(" ")
         if commands.is_on_cooldown(command, channel):
             pbot('Command is on cooldown. (%s) (%s) (%ss remaining)' % (
                 command, username, commands.get_cooldown_remaining(
                     command, channel)), channel)
+            self.whisper(
+                username, channel,  "Sorry! " + command +
+                " is on cooldown for " + str(
+                    commands.get_cooldown_remaining(
+                        command, channel)
+                    ) + " more seconds in " + channel.lstrip("#") +
+                        ". Can I help you?")
             return
         if commands.check_has_user_cooldown(command):
             if commands.is_on_user_cooldown(command, channel, username):
-                resp = "Sorry! You've got " + str(
-                    commands.get_user_cooldown_remaining(
-                        command, channel, username)) + \
-                    " seconds before you can do that again, " + username + "!"
-                self.irc.send_message(channel, resp)
+                self.whisper(
+                    username, channel, "Slow down! Try " + command +
+                    " in " + channel.lstrip("#") + " in another " + str(
+                        commands.get_user_cooldown_remaining(
+                            command, channel, username)) + " seconds or just \
+ask me directly?")
                 return
             commands.update_user_last_used(command, channel, username)
         pbot('Command is valid and not on cooldown. (%s) (%s)' %
              (command, username), channel)
-        # Check for and handle the simple non-command case.
         cmd_return = commands.get_return(command)
         if cmd_return != "command":
-            # it's a return = "some message here" kind of function
             resp = '(%s) : %s' % (username, cmd_return)
             commands.update_last_used(command, channel)
-            self.irc.send_message(channel, resp)
+            self.msg(channel, resp)
             return
-        # if there's a required userlevel, validate it.
         if commands.check_has_ul(username, command):
             user_data, __ = twitch.get_dict_for_users(channel)
             try:
-                if username not in user_data["chatters"]["moderators"]:
-                    if username != TEST_USER:
-                        resp = '(%s) : %s' % (
-                            username, "This is a moderator-only command!")
-                        pbot(resp, channel)
-                        self.irc.send_message(channel, resp)
-                        return
-            except Exception as error:
+                moderator = get_moderator(username, channel.lstrip("#"))
+                if not moderator and username != SUPERUSER:
+                    resp = '(%s) : %s' % (
+                        username, "This is a moderator-only command!")
+                    pbot(resp, channel)
+                    self.msg(channel, resp)
+                    return
+            except Exception as error:  # pragma: no cover
                 with open("errors.txt", "a") as f:
                     error_message = "{0} | {1} : {2}\n{3}\n{4}".format(
                         username, channel, command, user_data, error)
                     f.write(error_message)
-        approved_channels = [STREAM_USER, BOT_USER, TEST_USER]
+        approved_channels = [PRIMARY_CHANNEL, BOT_USER, SUPERUSER, TEST_USER]
         if globals.CURRENT_CHANNEL not in approved_channels:
-            prevented_list = []
+            prevented_list = ['songrequest', 'request', 'shots', 'donation',
+                              'welcome', 'rules', 'gt',
+                              'llama', 'loyalty', 'uptime', 'highlight',
+                              'weather', 'treats']
             if command.lstrip("!") in prevented_list:
                 return
         result = commands.pass_to_function(command, args)
         commands.update_last_used(command, channel)
         if result:
-            resp = '(%s) : %s' % (username, result)
+            resp = '(%s) : %s' % (username, result)[:350]
             pbot(resp, channel)
-            self.irc.send_message(channel, resp)
+            return resp
+
+
+class BotFactory(ClientFactory):
+
+    def __init__(self, kind):
+        self.kind = kind
+
+    def buildProtocol(self, addr):
+        bot = Bot()
+        bot.factory = self
+        return bot
+
+    def clientConnectionLost(self, connector, reason):
+        """If we get disconnected, reconnect to server."""
+        connector.connect()
+
+    def clientConnectionFailed(self, connector, reason):
+        print "connection failed:", reason
+        reactor.stop()

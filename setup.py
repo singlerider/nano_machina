@@ -36,7 +36,6 @@ config = {
     'channels': channels_to_join,
 }
 """
-    os.system("cp globals_example.py globals.py")
     with open("src/config/config.py", "w") as f:
         f.write(config_usernames + config_text)
     raw_input("Once you exit this script, install the dependencies with \

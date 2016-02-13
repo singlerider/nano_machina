@@ -11,6 +11,7 @@ def hosts():
 
 
 def cron(channel):
+    import globals
     try:
         channel = channel.lstrip("#")
         from src.lib.twitch import get_stream_status, get_hosts
@@ -34,7 +35,6 @@ def cron(channel):
                 resp = "Thank you {0} for the host! Here's 100 cash!".format(user)
                 globals.irc.send_message("#" + channel, resp)
             elif len(unthanked_users) > 1:
-                import globals
                 resp = "The following users are receiving 100 cash for hosting: " + ", ".join(unthanked_users) + "!"
                 globals.irc.send_message("#" + channel, resp)
             elif len(unthanked_users) > 10:
