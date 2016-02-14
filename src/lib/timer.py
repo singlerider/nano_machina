@@ -1,6 +1,6 @@
 def cron(channel):
     try:
-        from datetime import datetime, timedelta
+        from datetime import datetime
         from src.bot import ECHOERS, BOT_USER
         from src.lib.queries import Database
         chan = channel.lstrip("#")

@@ -46,6 +46,11 @@ class Database:
                     id INTEGER PRIMARY KEY, channel TEXT,
                     username TEXT, data_type TEXT);
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS moderators(
+                    id INTEGER PRIMARY KEY, username TEXT,
+                    channel TEXT);
+            """)
 
     def add_user(self, user, channel):
         with self.con:
@@ -81,10 +86,21 @@ class Database:
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
-                SELECT * FROM users WHERE username = ? and channel = ?
+                SELECT * FROM users WHERE username = ? and channel = ?;
             """, [user, channel])
             user_data = cur.fetchone()
             return user_data
+
+    def get_moderator(self, username, channel):
+        with self.con:
+            cur = self.con.cursor()
+            cur.execute("""
+                SELECT username, channel FROM moderators
+                    WHERE username = ? AND channel = ?;
+            """, [username, channel])
+            moderator = cur.fetchone()
+            cur.close()
+            return moderator
 
     def modify_points(self, user="testuser", channel="testchannel", points=5):
         with self.con:
@@ -97,19 +113,19 @@ class Database:
     def add_command(
             self, user="testuser", command="!test",
             response="{} check this out", user_level="reg",
-            channel="testchannel"):
+            channel="testchannel", timer_tripped=0, timer=0):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
                 INSERT INTO custom_commands(
                     id, channel, created_by, command, response,
-                    times_used, user_level)
-                    SELECT NULL, ?, ?, ?, ?, 0, ?
+                    times_used, user_level, timer, timer_tripped)
+                    SELECT NULL, ?, ?, ?, ?, 0, ?, ?, 0
                     WHERE NOT EXISTS(
                         SELECT 1 FROM custom_commands
                             WHERE command = ? and channel = ?);
             """, [channel, user, command, response,
-                        user_level, command, channel])
+                        user_level, timer, command, channel])
 
     def remove_command(self, command="!test", channel="testchannel"):
         with self.con:

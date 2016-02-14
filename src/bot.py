@@ -100,7 +100,6 @@ class Bot(irc.IRCClient):
         globals.CURRENT_USER = username
         chan = channel.lstrip("#")
         globals.CURRENT_CHANNEL = chan
-        print username, channel, message
         chan = channel.lstrip("#")
         if (channel == "#" + PRIMARY_CHANNEL or
                 channel == "#" + SUPERUSER or
@@ -111,12 +110,13 @@ class Bot(irc.IRCClient):
         chan = channel.lstrip("#")
         if message[0] == "!":
             message_split = message.split()
-            #fetch_command = get_custom_command(chan, message_split[0])
-            #if len(fetch_command) > 0:
-            #    if message_split[0] == fetch_command[0][1]:
-            #        self.return_custom_command(
-            #            channel, message_split, username)
-            #        return
+            fetch_command = Database().get_command(message_split[0], chan)
+            # (5, u'nano_machina', u'singlerider', u'!testcommand', u'hi', 0, u'reg', None, 0, u'2016-02-13 23:38:43')
+            if fetch_command and len(fetch_command) > 0:
+                if message_split[0] == fetch_command[3]:
+                    self.return_custom_command(
+                        channel, message_split, username, fetch_command)
+                    return
         part = message.split(' ')[0]
         valid = False
         if commands.is_valid_command(message):
@@ -145,24 +145,23 @@ class Bot(irc.IRCClient):
             echoer = ECHOERS["whisper"]
             echoer.sendLine(line)
 
-    def return_custom_command(self, channel, message, username):
+    def return_custom_command(self, channel, message, username, fetch_command):
+        # (5, u'nano_machina', u'singlerider', u'!testcommand', u'hi', 0, u'reg', None, 0, u'2016-02-13 23:38:43')
         chan = channel.lstrip("#")
-        elements = get_custom_command_elements(
-            chan, message[0])
         replacement_user = username
+        response = str(fetch_command[4])
         if len(message) > 1:
             replacement_user = message[1]
-        resp = elements[1].replace(
-            "{}", replacement_user).replace("[]", str(elements[2] + 1))
-        if elements[0] == "mod":
-            user_dict, __ = get_dict_for_users()
-            moderator = get_moderator(username, chan)
+        resp = str(response.replace(
+            "{}", replacement_user).replace("[]", str(fetch_command[5] + 1)))
+        if fetch_command[6] == "mod":
+            moderator = Database().get_moderator(username, chan)
             if moderator:
                 self.msg(channel, resp)
-                increment_command_counter(chan, message[0])
-        elif elements[0] == "reg":
+                Database().increment_command(message[0], chan)
+        elif fetch_command[6] == "reg":
             self.msg(channel, resp)
-            increment_command_counter(chan, message[0])
+            Database().increment_command(message[0], chan)
 
     def check_for_sub(self, channel, username, message):
         try:
@@ -248,7 +247,7 @@ ask me directly?")
         if commands.check_has_ul(username, command):
             user_data, __ = twitch.get_dict_for_users(channel)
             try:
-                moderator = get_moderator(username, channel.lstrip("#"))
+                moderator = Database().get_moderator(username, channel.lstrip("#"))
                 if not moderator and username != SUPERUSER:
                     resp = '(%s) : %s' % (
                         username, "This is a moderator-only command!")

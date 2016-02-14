@@ -1,6 +1,3 @@
-import os
-
-
 def main():
     raw_input("This is a guide to do the things to get your bot set up. \
 Press Enter ")
