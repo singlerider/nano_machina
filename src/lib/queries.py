@@ -137,13 +137,13 @@ class Database:
 
     def modify_command(
             self, command="!test", response="different response",
-            channel="testchannel", user_level="mod"):
+            channel="testchannel", user_level="mod", timer=None):
         with self.con:
             cur = self.con.cursor()
             cur.execute("""
-                UPDATE custom_commands SET response = ?, user_level = ?
-                    WHERE command = ? AND channel = ?;
-            """, [response, user_level, command, channel])
+                UPDATE custom_commands SET response = ?, user_level = ?,
+                    timer = ? WHERE command = ? AND channel = ?;
+            """, [response, user_level, timer, command, channel])
 
     def increment_command(self, command="!test", channel="testuser"):
         with self.con:

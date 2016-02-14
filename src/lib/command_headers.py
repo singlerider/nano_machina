@@ -1,14 +1,12 @@
 import globals
 
 commands = {
-
     '!commands': {
         'limit': 0,
         'return': 'command',
         'argc': 0,
         'usage': '!commands'
     },
-
     '!follower': {
         'limit': 0,
         'return': 'command',
@@ -16,7 +14,6 @@ commands = {
         'usage': '!follower [username]',
         'ul': 'mod'
     },
-
     '!uptime': {
         'limit': 15,
         'return': 'command',
@@ -24,14 +21,12 @@ commands = {
         'usage': '!uptime',
         'user_limit': 5
     },
-
     '!stream': {
         'limit': 60,
         'return': 'command',
         'argc': 0,
         'usage': '!stream'
     },
-
     '!popularity': {
         'limit': 0,
         'argc': 1,
@@ -39,7 +34,6 @@ commands = {
         'space_case': True,
         'usage': '!popularity [name_of_game]'
     },
-
     '!follow': {
         'limit': 0,
         'argc': 1,
@@ -47,7 +41,6 @@ commands = {
         'usage': '!follow [streamer_username]',
         'ul': 'mod'
     },
-
     '!donation': {
         'limit': 0,
         'argc': 2,
@@ -55,28 +48,24 @@ commands = {
         'usage': '!donation [username] [dollar_amount]',
         'ul': 'mod'
     },
-
     '!add': {
         'limit': 0,
         'argc': 3,
         'return': 'command',
-        'usage': '!add [command] [user_level("mod"/"reg") [response]]'
+        'usage': '!add [command] [user_level("mod"/"reg")/number [response]]'
     },
-
     '!edit': {
         'limit': 0,
         'argc': 3,
         'return': 'command',
-        'usage': '!edit [command] [user_level("mod"/"reg") [response]]'
+        'usage': '!edit [command] [user_level("mod"/"reg")/number [response]]'
     },
-
     '!rem': {
         'limit': 0,
         'argc': 1,
         'return': 'command',
-        'usage': '!add [command] [user_level("mod"/"reg") [response]]'
+        'usage': '!rem [command]'
     },
-
     '!hosts': {
         'limit': 0,
         'return': 'command',
