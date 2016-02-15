@@ -10,17 +10,16 @@ import time
 
 import globals
 import lib.functions_commands as commands
+import src.config.crons as crons
 import src.lib.command_headers
 import src.lib.rive as rive
 import src.lib.twitch as twitch
-from lib.functions_general import *
+from lib.functions_general import pbot
 from src.config.config import channels_to_join, config
-from src.lib.twitch import get_dict_for_users
+from src.lib.queries import Database
 from twisted.internet import reactor, task, threads
 from twisted.internet.protocol import ClientFactory
 from twisted.words.protocols import irc
-from src.lib.queries import Database
-import src.config.crons as crons
 
 Database().initiate()
 pattern = re.compile('[\W_]+')
@@ -40,13 +39,6 @@ PASSWORD = config["oauth_password"]
 ECHOERS = {}
 
 
-def ban_for_spam(channel, user):
-    ban = "/ban {0}".format(user)
-    unban = "/unban {0}".format(user)
-    self.msg(channel, ban)
-    self.msg(channel, unban)
-
-
 class Bot(irc.IRCClient):
 
     def __init__(self):
@@ -57,8 +49,8 @@ class Bot(irc.IRCClient):
         src.lib.command_headers.initalizeCommands(config)
 
     def dataReceived(self, data):
-        if data.split()[0] != "PING" or data.split()[1] != "PONG":
-            print("->*" + data)
+        if "PING" in str(data.split()[0]) or "PONG" in str(data.split()[1]):
+                print("->*" + data)
         if data.split()[1] == "WHISPER":
             user = data.split()[0].lstrip(":")
             channel = user.split("!")[0]
@@ -101,17 +93,11 @@ class Bot(irc.IRCClient):
         chan = channel.lstrip("#")
         globals.CURRENT_CHANNEL = chan
         chan = channel.lstrip("#")
-        if (channel == "#" + PRIMARY_CHANNEL or
-                channel == "#" + SUPERUSER or
-                channel == "#" + TEST_USER):
-            if username == "twitchnotify":
-                check_for_sub(channel, username, message)
-            # TODO add spam detector here
+        # TODO add spam detector here
         chan = channel.lstrip("#")
         if message[0] == "!":
             message_split = message.split()
             fetch_command = Database().get_command(message_split[0], chan)
-            # (5, u'nano_machina', u'singlerider', u'!testcommand', u'hi', 0, u'reg', None, 0, u'2016-02-13 23:38:43')
             if fetch_command and len(fetch_command) > 0:
                 if message_split[0] == fetch_command[3]:
                     self.return_custom_command(
@@ -146,7 +132,6 @@ class Bot(irc.IRCClient):
             echoer.sendLine(line)
 
     def return_custom_command(self, channel, message, username, fetch_command):
-        # (5, u'nano_machina', u'singlerider', u'!testcommand', u'hi', 0, u'reg', None, 0, u'2016-02-13 23:38:43')
         chan = channel.lstrip("#")
         replacement_user = username
         response = str(fetch_command[4])
@@ -162,25 +147,6 @@ class Bot(irc.IRCClient):
         elif fetch_command[6] == "reg":
             self.msg(channel, resp)
             Database().increment_command(message[0], chan)
-
-    def check_for_sub(self, channel, username, message):
-        try:
-            message_split = message.rstrip("!").split()
-            subbed_user = message_split[0]
-            if message_split[1] == "just" and len(message_split) < 4:
-                modify_user_points(subbed_user, 100)
-                resp = "/me {0} treats for {1} for a first \
-    time subscription!".format(100, subbed_user)
-                self.msg(channel, resp)
-            elif message_split[1] == "subscribed" and len(message_split) < 9:
-                months_subbed = message_split[3]
-                modify_user_points(subbed_user, int(months_subbed) * 100)
-                resp = "/me {0} has just resubscribed for {1} \
-    months straight and is getting {2} treats for loyalty!".format(
-                    subbed_user, months_subbed, int(months_subbed) * 100)
-                self.msg(channel, resp)
-        except Exception as error:  # pragma: no cover
-            print error
 
     def cron_initialize(self, user, channel):
         crons = self.crons.get("#" + channel.lstrip("#"), None)
@@ -259,14 +225,6 @@ ask me directly?")
                     error_message = "{0} | {1} : {2}\n{3}\n{4}".format(
                         username, channel, command, user_data, error)
                     f.write(error_message)
-        approved_channels = [PRIMARY_CHANNEL, BOT_USER, SUPERUSER, TEST_USER]
-        if globals.CURRENT_CHANNEL not in approved_channels:
-            prevented_list = ['songrequest', 'request', 'shots', 'donation',
-                              'welcome', 'rules', 'gt',
-                              'llama', 'loyalty', 'uptime', 'highlight',
-                              'weather', 'treats']
-            if command.lstrip("!") in prevented_list:
-                return
         result = commands.pass_to_function(command, args)
         commands.update_last_used(command, channel)
         if result:
