@@ -52,13 +52,13 @@ commands = {
         'limit': 0,
         'argc': 3,
         'return': 'command',
-        'usage': '!add [command] [user_level("mod"/"reg")/number [response]]'
+        'usage': '!add [command] [user_level("mod"/"reg")/number [response]'
     },
     '!edit': {
         'limit': 0,
         'argc': 3,
         'return': 'command',
-        'usage': '!edit [command] [user_level("mod"/"reg")/number [response]]'
+        'usage': '!edit [command] [user_level("mod"/"reg")/number] [response]'
     },
     '!rem': {
         'limit': 0,

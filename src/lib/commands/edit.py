@@ -8,7 +8,6 @@ def edit(args):
     command = "!" + args[0].lower().lstrip("!")
     user_level = args[1]
     response = " ".join(args[2:])
-    creator = globals.CURRENT_USER
     channel = globals.CURRENT_CHANNEL
     if command not in command_headers.commands:
         command_data = db.get_command(command, channel)
