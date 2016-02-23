@@ -71,6 +71,27 @@ commands = {
         'return': 'command',
         'usage': '!hosts',
         'argc': 0
+    },
+    '!subcount': {
+        'limit': 5,
+        'return': 'command',
+        'usage': '!subcount',
+        'argc': 0,
+        'user_limit': 25
+    },
+    '!activate': {
+        'limit': 0,
+        'argc': 1,
+        'return': 'command',
+        'ul': 'mod',
+        'usage': '!activate [command]'
+    },
+    '!deactivate': {
+        'limit': 0,
+        'argc': 1,
+        'return': 'command',
+        'ul': 'mod',
+        'usage': '!deactivate [command]'
     }
 }
 

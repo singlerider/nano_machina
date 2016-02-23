@@ -43,14 +43,15 @@ pip install -r requirements.txt
 ```
 
 ### Further Steps
-Make a copy of the example config file:
+Make a copy of the example config file and globals file:
 
 ```shell
 cp src/config/config_example.py src/config/config.py
+cp globals_example.py globals.py
 ```
 
 #### Config Files
-Head into `src/config/config.py` and enter the correct channels and cron jobs you'd like to run.
+Head into `src/config/config.py` and enter the correct channels and cron jobs you'd like to run. Input appropriate Oauth tokens in `globals.py`.
 
 ## Make It Do
 ### Adding your own commands

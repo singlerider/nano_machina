@@ -7,13 +7,6 @@
 + botmaster only
 - This command can only be used by my botmaster. <id> != <bot master>
 
-> object shutdown perl
-	my ($rs) = @_;
-
-	# Shut down.
-	exit(0);
-< object
-
 > object shutdown python
 	# Shut down
 	exit(0)

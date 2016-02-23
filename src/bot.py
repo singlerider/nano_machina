@@ -4,12 +4,14 @@ Intricate Chat Bot for Twitch.tv with Whispers
 By Shane Engelman <me@5h4n3.com>
 """
 
+import json
 import re
 import sys
 import time
 
 import globals
 import lib.functions_commands as commands
+import requests
 import src.config.crons as crons
 import src.lib.command_headers
 import src.lib.rive as rive
@@ -49,8 +51,8 @@ class Bot(irc.IRCClient):
         src.lib.command_headers.initalizeCommands(config)
 
     def dataReceived(self, data):
-        if "PING" in str(data.split()[0]) or "PONG" in str(data.split()[1]):
-                print("->*" + data)
+        if "PING" not in str(data).split()[0] and "PONG" not in str(data).split()[1]:
+            print("->*" + data)
         if data.split()[1] == "WHISPER":
             user = data.split()[0].lstrip(":")
             channel = user.split("!")[0]
@@ -77,7 +79,15 @@ class Bot(irc.IRCClient):
 
     def clientConnectionLost(self, connector, reason):
         """If we get disconnected, reconnect to server."""
-        connector.connect()
+        if self.kind == "whisper":
+            whisper_url = "http://tmi.twitch.tv/servers?cluster=group"
+            whisper_resp = requests.get(url=whisper_url)
+            whisper_data = json.loads(whisper_resp.content)
+            socket = whisper_data["servers"][0].split(":")
+            WHISPER = [str(socket[0]), int(socket[1])]
+            reactor.connectTCP(WHISPER[0], WHISPER[1], BotFactory("whisper"))
+        else:
+            connector.connect()
 
     def clientConnectionFailed(self, connector, reason):
         print "connection failed:", reason
@@ -125,11 +135,13 @@ class Bot(irc.IRCClient):
         else:
             username = user.split("!")[0].lstrip(":")
             resp = rive.Conversation(self).run(BOT_USER, username, msg)[:350]
-        if resp:
-            sender = "{user}!{user}@{user}.tmi.twitch.tv".format(user=BOT_USER)
-            line = ":%s PRIVMSG #jtv :/w %s %s" % (sender, channel, resp)
-            echoer = ECHOERS["whisper"]
-            echoer.sendLine(line)
+        if "ERR" in resp:
+            resp = "Try again. I dropped my glasses."
+        sender = "{user}!{user}@{user}.tmi.twitch.tv".format(user=BOT_USER)
+        line = ":{user} PRIVMSG {channel} :{message}".format(
+            user=sender, channel=channel, message=resp)
+        echoer = ECHOERS["whisper"]
+        echoer.sendLine(line)
 
     def return_custom_command(self, channel, message, username, fetch_command):
         chan = channel.lstrip("#")
@@ -172,6 +184,11 @@ class Bot(irc.IRCClient):
             self.transport.write(line + "\r\n")
 
     def handle_command(self, command, channel, username, message):
+        db = Database()
+        is_active = db.get_active_command(
+            channel=channel.lstrip("#"), command=command)[0]
+        if is_active == 0:
+            return
         if command == message:
             args = []
         elif command == message and command in commands.keys():  # pragma: no cover
@@ -181,7 +198,7 @@ class Bot(irc.IRCClient):
         if not commands.check_is_space_case(command) and args:
             args = args[0].split(" ")
         if commands.is_on_cooldown(command, channel):
-            pbot('Command is on cooldown. (%s) (%s) (%ss remaining)' % (
+            pbot('Command is on cooldown. ({0}) ({1}) ({2}s remaining)'.format(
                 command, username, commands.get_cooldown_remaining(
                     command, channel)), channel)
             self.whisper(
@@ -189,8 +206,8 @@ class Bot(irc.IRCClient):
                 " is on cooldown for " + str(
                     commands.get_cooldown_remaining(
                         command, channel)
-                    ) + " more seconds in " + channel.lstrip("#") +
-                        ". Can I help you?")
+                ) + " more seconds in " + channel.lstrip("#") +
+                ". Can I help you?")
             return
         if commands.check_has_user_cooldown(command):
             if commands.is_on_user_cooldown(command, channel, username):
@@ -202,8 +219,6 @@ class Bot(irc.IRCClient):
 ask me directly?")
                 return
             commands.update_user_last_used(command, channel, username)
-        pbot('Command is valid and not on cooldown. (%s) (%s)' %
-             (command, username), channel)
         cmd_return = commands.get_return(command)
         if cmd_return != "command":
             resp = '(%s) : %s' % (username, cmd_return)
@@ -245,7 +260,15 @@ class BotFactory(ClientFactory):
 
     def clientConnectionLost(self, connector, reason):
         """If we get disconnected, reconnect to server."""
-        connector.connect()
+        if self.kind == "whisper":
+            whisper_url = "http://tmi.twitch.tv/servers?cluster=group"
+            whisper_resp = requests.get(url=whisper_url)
+            whisper_data = json.loads(whisper_resp.content)
+            socket = whisper_data["servers"][0].split(":")
+            WHISPER = [str(socket[0]), int(socket[1])]
+            reactor.connectTCP(WHISPER[0], WHISPER[1], BotFactory("whisper"))
+        else:
+            connector.connect()
 
     def clientConnectionFailed(self, connector, reason):
         print "connection failed:", reason

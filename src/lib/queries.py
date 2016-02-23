@@ -51,6 +51,11 @@ class Database:
                     id INTEGER PRIMARY KEY, username TEXT,
                     channel TEXT);
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS active_commands(
+                    id INTEGER PRIMARY KEY, channel TEXT, command TEXT,
+                    active INTEGER DEFAULT 1);
+            """)
 
     def add_user(self, user, channel):
         with self.con:
@@ -303,3 +308,32 @@ class Database:
             cur.execute("""
                 DELETE FROM channel_data WHERE channel = ? AND data_type = ?;
             """, [channel, data_type])
+
+    def modify_active_command(
+            self, channel="testchannel", command="testcommand", active=1):
+        with self.con:
+            cur = self.con.cursor()
+            cur.execute("""
+                INSERT INTO active_commands(
+                    id, channel, command, active)
+                    SELECT NULL, ?, ?, ?
+                    WHERE NOT EXISTS(
+                        SELECT 1 FROM active_commands
+                            WHERE channel = ? AND command = ?);
+            """, [channel, command, active, channel, command])
+            cur.execute("""
+                UPDATE active_commands SET active = ?
+                    WHERE channel = ? AND command = ?;
+            """, [active, channel, command])
+
+    def get_active_command(self, channel="testchannel", command="testcommand"):
+        with self.con:
+            cur = self.con.cursor()
+            cur.execute("""
+                SELECT active FROM active_commands
+                    WHERE channel = ? AND command = ?;
+            """, [channel, command])
+            active = cur.fetchone()
+            if active is None:
+                active = (1, )
+            return active

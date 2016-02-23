@@ -36,8 +36,8 @@ config = {
     with open("src/config/config.py", "w") as f:
         f.write(config_usernames + config_text)
     raw_input("Once you exit this script, install the dependencies with \
-'sudo pip install -r requirements.txt' and run \
-'./serve.py' Press Enter to quit ")
+'pip install -r requirements.txt' (prefereably from an activate virtual \
+environment) and run './serve.py' Press Enter to quit ")
 
 
 if __name__ == "__main__":

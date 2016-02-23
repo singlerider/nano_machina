@@ -9,3 +9,4 @@ log/*
 src/lib/trivia/*
 src/logs/*
 venv/*
+globals.py

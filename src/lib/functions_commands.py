@@ -5,6 +5,7 @@ from commands import *
 from command_headers import *
 import sys
 import traceback
+from src.lib.queries import Database
 
 
 def is_valid_command(command):
