@@ -14,5 +14,4 @@ def deactivate(args):
         db.modify_active_command(channel=channel, command=command, active=0)
         return command + " deactivated!"
     else:
-        print command, command_data, commands
         return command + " not found."
