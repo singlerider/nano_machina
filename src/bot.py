@@ -77,22 +77,6 @@ class Bot(irc.IRCClient):
         if self.factory.kind == "chat":
             self.cron_initialize(BOT_USER, channel)
 
-    def clientConnectionLost(self, connector, reason):
-        """If we get disconnected, reconnect to server."""
-        if self.kind == "whisper":
-            whisper_url = "http://tmi.twitch.tv/servers?cluster=group"
-            whisper_resp = requests.get(url=whisper_url)
-            whisper_data = json.loads(whisper_resp.content)
-            socket = whisper_data["servers"][0].split(":")
-            WHISPER = [str(socket[0]), int(socket[1])]
-            reactor.connectTCP(WHISPER[0], WHISPER[1], BotFactory("whisper"))
-        else:
-            connector.connect()
-
-    def clientConnectionFailed(self, connector, reason):
-        print "connection failed:", reason
-        reactor.stop()
-
     def action(self, user, channel, data):
         pass
 
@@ -260,6 +244,7 @@ class BotFactory(ClientFactory):
 
     def clientConnectionLost(self, connector, reason):
         """If we get disconnected, reconnect to server."""
+        print "disconnected:", reason
         if self.kind == "whisper":
             whisper_url = "http://tmi.twitch.tv/servers?cluster=group"
             whisper_resp = requests.get(url=whisper_url)
@@ -267,9 +252,10 @@ class BotFactory(ClientFactory):
             socket = whisper_data["servers"][0].split(":")
             WHISPER = [str(socket[0]), int(socket[1])]
             reactor.connectTCP(WHISPER[0], WHISPER[1], BotFactory("whisper"))
+            connector.connect()
         else:
             connector.connect()
 
     def clientConnectionFailed(self, connector, reason):
         print "connection failed:", reason
-        reactor.stop()
+        connector.connect()
