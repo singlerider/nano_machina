@@ -4,8 +4,8 @@ import globals
 import requests
 
 
-def subcount():
-    channel = globals.CURRENT_CHANNEL
+def subcount(**kwargs):
+    channel = kwargs.get("testchannel")
     try:
         token = globals.TWITCH_OAUTH[channel]
     except:

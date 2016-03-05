@@ -1,8 +1,7 @@
 from src.lib.twitch import *
-import globals
 
 
-def followers():
+def followers(**kwargs):
     stream_followers = get_stream_followers()
     # TODO Refactor as a list comprehension
     follower_list = str(stream_followers["follows"][0]["user"][
@@ -21,7 +20,7 @@ def followers():
         "% of the last 100 followers have opted for notifications."
     follower_return = "Most recent followers: " + follower_list + ". "
     user_dict, all_users = get_dict_for_users()
-    if globals.CURRENT_USER in user_dict['chatters']['moderators']:
+    if kwargs.get("username", "testuser") in user_dict['chatters']['moderators']:
         return follower_return + mod_return
     else:
         return follower_return

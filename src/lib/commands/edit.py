@@ -1,14 +1,13 @@
 from src.lib.queries import Database
 import src.lib.command_headers as command_headers
-import globals
 
 
-def edit(args):
+def edit(args, **kwargs):
     db = Database()
     command = "!" + args[0].lower().lstrip("!")
     user_level = args[1]
     response = " ".join(args[2:])
-    channel = globals.CURRENT_CHANNEL
+    channel = kwargs.get("channel", "testchannel")
     if command not in command_headers.commands:
         command_data = db.get_command(command, channel)
         if command_data:

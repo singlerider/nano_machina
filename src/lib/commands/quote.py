@@ -1,10 +1,9 @@
 from src.lib.queries import Database
-import globals
 
 
-def quote():
+def quote(**kwargs):
     db = Database()
-    channel = globals.CURRENT_CHANNEL
+    channel = kwargs.get("channel", "testchannel")
     # (1, u'testchannel', u'testuser', u'quote', 1, u'testgame')
     quote_data = db.get_quote(channel)
     if quote_data is None:

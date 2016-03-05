@@ -224,7 +224,8 @@ ask me directly?")
                     error_message = "{0} | {1} : {2}\n{3}\n{4}".format(
                         username, channel, command, user_data, error)
                     f.write(error_message)
-        result = commands.pass_to_function(command, args)
+        result = commands.pass_to_function(
+            command, args, username=username, channel=channel.lstrip("#"))
         commands.update_last_used(command, channel)
         if result:
             resp = '(%s) : %s' % (username, result)[:350]

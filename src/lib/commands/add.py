@@ -1,15 +1,14 @@
 from src.lib.queries import Database
 import src.lib.command_headers as command_headers
-import globals
 
 
-def add(args):
+def add(args, **kwargs):
     db = Database()
     command = "!" + args[0].lower().lstrip("!")
     user_level = args[1]
     response = " ".join(args[2:])
-    creator = globals.CURRENT_USER
-    channel = globals.CURRENT_CHANNEL
+    creator = kwargs.get("username", "testuser")
+    channel = kwargs.get("channel", "testchannel")
     if command not in command_headers.commands:
         if user_level == "reg" or user_level == "mod":
             db.add_command(

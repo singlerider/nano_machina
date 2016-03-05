@@ -1,10 +1,9 @@
-import globals
 import src.lib.command_headers as commands
 from src.lib.queries import Database
 
 
-def deactivate(args):
-    channel = globals.CURRENT_CHANNEL
+def deactivate(args, **kwargs):
+    channel = kwargs.get("channel", "testchannel")
     command = "!" + args[0].lstrip("!")
     command_data = commands.commands.get(command, None)
     if command == "!activate" or command == "!deactivate":
